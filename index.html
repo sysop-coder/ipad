@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>豐東國中平板借用系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #111827; --ink-soft: #4b5563; --bg-app: #f9fafb; --bg-panel: #ffffff;
+    --border: #d1d5db; --border-soft: #e5e7eb; 
+    --accent: #2563eb; --accent-soft: #eff6ff; --danger: #ef4444; --danger-bg: #fef2f2; --ok: #10b981;
+    --radius: 8px; --radius-sm: 6px; --radius-pill: 99px;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-app); color: var(--ink); font-family: 'Public Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .app { max-width: 1040px; margin: 0 auto; padding: 24px 20px 80px; }
+  
+  .theme-blue { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
+  .theme-green { background: #f0fdf4; color: #166534; border: 1px solid #dcfce7; }
+  .theme-red { background: #fef2f2; color: #991b1b; border: 1px solid #fee2e2; }
+  .theme-orange { background: #fff7ed; color: #9a3412; border: 1px solid #ffedd5; }
+  .theme-purple { background: #faf5ff; color: #6b21a8; border: 1px solid #f3e8ff; }
+  .theme-gray { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+
+  .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .topbar h1 { font-size: 24px; margin:0; }
+  .topbar p { margin: 6px 0 0; color: var(--ink-soft); font-size: 13.5px; font-weight: 500; }
+  
+  .tabs { display: flex; gap: 4px; background: #e5e7eb; padding: 4px; border-radius: var(--radius-pill); }
+  .tabs button { border: none; background: transparent; padding: 6px 14px; border-radius: var(--radius-pill); font-weight: 600; font-size: 13px; color: var(--ink-soft); cursor: pointer; }
+  .tabs button.active { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+
+  .weeknav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .nav-btn, .today-btn { border: 1px solid var(--border); background: var(--bg-panel); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--ink-soft); padding: 6px 12px; }
+  .notice { background: #f0fdf4; border: 1px solid #dcfce7; color: #166534; border-radius: var(--radius); padding: 10px 14px; font-size: 13px; font-weight: 500; margin-bottom: 20px; }
+
+  .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .desktop-table { width: 100%; min-width: 800px; border-collapse: collapse; table-layout: fixed; background: white; border: 1px solid var(--border); }
+  .desktop-table th, .desktop-table td { border: 1px solid var(--border-soft); padding: 0; vertical-align: top; height: 1px; }
+  .desktop-table thead th { background: #f9fafb; padding: 12px 8px; font-size: 13.5px; height: auto; text-align: center; }
+  .desktop-table tbody th { background: #f9fafb; font-size: 13px; width: 65px; padding: 8px; height: auto; text-align: center; vertical-align: middle; }
+  
+  .slot-wrapper { display: flex; flex-direction: column; gap: 6px; min-height: 72px; height: 100%; padding: 8px; box-sizing: border-box; }
+  .slot-wrapper.disabled { background: #ffffff; pointer-events: none; }
+  .slot-wrapper.disabled .pill { pointer-events: auto; }
+  .slot-wrapper:not(.disabled):not(.admin-mode):hover { background: #f8fafc; box-shadow: inset 0 0 0 2px var(--accent); }
+
+  .pill { position: relative; display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 700; }
+  .pill .who { font-weight: 500; font-size: 11.5px; opacity: 0.85; }
+  .x-btn { position: absolute; right: -5px; top: -5px; background: var(--danger); color: white; width: 16px; height: 16px; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; pointer-events: auto; }
+  
+  .add-booking-btn { background: #fff; border: 1px dashed var(--accent); color: var(--accent); border-radius: var(--radius-sm); padding: 6px 4px; font-size: 12.5px; font-weight: 700; cursor: pointer; opacity: 0; pointer-events: none; }
+  .slot-wrapper:not(.disabled):hover .add-booking-btn { opacity: 1; pointer-events: auto; }
+  
+  @media (hover: none), (pointer: coarse) {
+    .add-booking-btn { opacity: 1 !important; pointer-events: auto !important; }
+  }
+
+  .status-text { font-size: 12px; font-weight: 600; color: #9ca3af; text-align: center; margin-top: 8px; }
+  
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; padding:20px; }
+  .modal { background: white; border-radius: 12px; width: 100%; max-width: 400px; padding: 24px; max-height: 90vh; overflow-y: auto; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input, .field select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; }
+  .btn { padding: 10px; border-radius: var(--radius-sm); border: none; font-size: 14px; font-weight: 600; cursor: pointer; flex:1; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--bg-app); border: 1px solid var(--border); }
+  .btn.danger { background: var(--danger); color: #fff; }
+  
+  .block-grid { width: 100%; border-collapse: collapse; margin-top: 8px; font-size:12.5px; }
+  .block-grid th, .block-grid td { border: 1px solid var(--border); padding: 4px; text-align: center; }
+  .block-grid td.grid-cell { cursor: pointer; }
+  .block-grid td.is-blocked { background: var(--danger-bg); color: var(--danger); }
+  
+  .list-table { width: 100%; border-collapse: collapse; font-size: 13.5px; background:white; }
+  .list-table th, .list-table td { border-bottom: 1px solid var(--border); padding: 12px; text-align: left; }
+  
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 20px; border-radius: var(--radius-pill); z-index: 100; }
+  
+  @media (max-width: 768px) {
+    .desktop-only { display: none !important; }
+    .mobile-only { display: flex; flex-direction: column; gap: 20px; }
+    .mobile-slot { border: 1px solid var(--border); padding: 14px; background: white; margin-bottom:10px; border-radius:8px;}
+    .add-booking-btn { padding: 10px; }
+  }
+  .desktop-only { display: block; }
+  .mobile-only { display: none; }
+
+  .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+  .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+  .toggle-switch input:checked + .toggle-slider { background-color: var(--accent); }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div style="padding:100px; text-align:center;"><h2 style="color:#2563eb;">🔄 系統載入中...</h2></div>
+</div>
+
+<script>
+(function(){
+  const SSO_CENTER_URL = "https://cjh123-coder.github.io/sso/"; 
+  const CURRENT_APP_URL = "https://cjh123-coder.github.io/ipad/";
+  const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwX6yX7iE4XFDltH1CnwUv937Ezl8a0thiveCFlr7Pat5jQJGrl76VTjdmluZ6ASY3f/exec"; 
+
+  const PERIODS = ['第一節','第二節','第三節','第四節','第五節','第六節','第七節','第八節'];
+  const WEEKDAY_LABEL = ['日','一','二','三','四','五','六'];
+  const THEMES = { blue:'藍色', green:'綠色', red:'紅色', orange:'橘黃', purple:'紫色', gray:'灰色' };
+
+  let state = {
+    tab: 'teacher', viewStart: getStartOfToday(),
+    bookings: {}, carts: [], sysSettings: { minLeadDays: 3, maxBookingDays: 7, maxWeeklyPeriods: 5, locationAdmins: {} },
+    modal: null, cartModal: null, loaded: false, userData: null, confirmCancelKey: null, filterLocation: '', warningModal: false,
+    locationErrorModal: null
+  };
+
+  function pad(n){ return n < 10 ? '0'+n : ''+n; }
+  function fmt(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function getStartOfToday(){ const t = new Date(); t.setHours(0,0,0,0); return t; }
+  function daysBetween(a,b){ return Math.round((b.getTime() - a.getTime())/86400000); }
+  function keyOf(d, p, c){ return d+'|'+p+'|'+c; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  
+  // 權限驗證邏輯
+  function checkIsSuperAdmin(user) { 
+    return user && ['admin', 'assistant', 'director', 'headmaster'].includes(user.roleId);
+  }
+
+  function getManagedLocations(user) {
+    if (!user) return [];
+    const locAdmins = state.sysSettings.locationAdmins || {};
+    const managed = [];
+    for (const loc in locAdmins) {
+      const admins = locAdmins[loc].split(',').map(s => s.trim());
+      if (admins.includes(user.name)) managed.push(loc);
+    }
+    return managed;
+  }
+
+  function checkHasAnyAdminRights(user) {
+    if (checkIsSuperAdmin(user)) return true;
+    return getManagedLocations(user).length > 0;
+  }
+
+  function matchUser(fieldValue, userName) {
+    if (!fieldValue || !userName) return false;
+    return fieldValue === userName || 
+           fieldValue.startsWith(userName + ' (由') || 
+           fieldValue.includes('(由 ' + userName + ' 登記)');
+  }
+  
+  function enforceLocalSession() {
+    const loginTime = localStorage.getItem('ipadLoginTime');
+    if (loginTime && Date.now() - Number(loginTime) > 8 * 60 * 60 * 1000) {
+      localStorage.removeItem('ipadUserData');
+      localStorage.removeItem('ipadSessionId');
+      localStorage.removeItem('ipadLoginTime');
+      state.userData = null;
+      if (state.tab === 'admin') state.tab = 'teacher';
+      return false;
+    }
+    return true;
+  }
+
+  function getMonday(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    return fmt(d);
+  }
+  
+  function getWeeklyCount(dateStr) {
+    if (!state.userData || checkIsSuperAdmin(state.userData)) return 0;
+    const targetMonday = getMonday(dateStr);
+    let count = 0;
+    Object.values(state.bookings).forEach(b => {
+      if (matchUser(b.teacher, state.userData.name) && getMonday(b.date) === targetMonday) count++;
+    });
+    return count;
+  }
+
+  function getBusinessDays(start, count) {
+    let days = []; let d = new Date(start);
+    while (days.length < count) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) days.push(new Date(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return days;
+  }
+  
+  function shiftBusinessDays(date, delta) {
+    let d = new Date(date); let added = 0;
+    let dir = delta > 0 ? 1 : -1;
+    while(added < Math.abs(delta)){
+      d.setDate(d.getDate() + dir);
+      if(d.getDay() !== 0 && d.getDay() !== 6) added++;
+    }
+    return d;
+  }
+
+  function isClassAllowed(inputClass, allowedPattern) {
+    if (!allowedPattern || !allowedPattern.trim()) return true;
+    const c = String(inputClass).trim();
+    const rules = allowedPattern.split(',').map(s => s.trim());
+    for (const r of rules) {
+      if (!r) continue;
+      if (r.includes('-')) {
+        const [min, max] = r.split('-').map(Number);
+        const cur = Number(c);
+        if (!isNaN(min) && !isNaN(max) && !isNaN(cur) && cur >= min && cur <= max) return true;
+      } else {
+        if (c === r || c.startsWith(r)) return true;
+      }
+    }
+    return false;
+  }
+
+  function showToast(msg){
+    const existing = document.getElementById('sys-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'sys-toast';
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(()=> { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3000);
+  }
+
+  async function callServer(fnName, ...args) {
+    const sessionId = localStorage.getItem('ipadSessionId') || "";
+    const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: fnName, args: args, sessionId }) });
+    const result = await res.json();
+    if (result.status === 'success') return result.data;
+    if (result.message.includes("Session") || result.message.includes("重新登入") || result.message === "EXPIRED") {
+      handleLogout(false); throw new Error("EXPIRED");
+    }
+    throw new Error(result.message);
+  }
+
+  async function handleLogout(notifyServer = true) {
+    if(notifyServer && state.userData) try { await callServer('logoutSession'); } catch(e) {}
+    localStorage.clear();
+    window.location.replace(SSO_CENTER_URL + "?redirect=" + encodeURIComponent(CURRENT_APP_URL));
+  }
+
+  async function initGatekeeper() {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) {
+      const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'verifyIpadLogin', args: [token] }) }).then(r=>r.json());
+      if (res.status === 'success' && res.data.success) {
+        localStorage.setItem('ipadUserData', JSON.stringify(res.data.userData));
+        localStorage.setItem('ipadSessionId', res.data.sessionId);
+        localStorage.setItem('ipadLoginTime', Date.now().toString());
+        window.location.replace(CURRENT_APP_URL);
+      } else { handleLogout(false); }
+      return;
+    }
+    
+    if (localStorage.getItem('ipadUserData') && localStorage.getItem('ipadSessionId')) {
+      if (enforceLocalSession()) {
+        state.userData = JSON.parse(localStorage.getItem('ipadUserData'));
+      } else {
+        showToast('前次登入已逾時，已切換為訪客模式');
+      }
+    } else {
+      state.userData = null; 
+    }
+    loadInitialData();
+  }
+
+  async function loadInitialData(silent = false){
+    try {
+      const [b, c, s] = await Promise.all([ callServer('getBookings'), callServer('getCarts'), callServer('getSettings') ]);
+      state.bookings = b||{}; state.carts = c||[]; state.sysSettings = s||state.sysSettings;
+    } catch(e){}
+    state.loaded = true; 
+    
+    if (!(silent && (state.modal || state.cartModal || state.warningModal || state.locationErrorModal))) {
+      render();
+    }
+  }
+
+  function render(){
+    if(!state.loaded) return;
+    document.getElementById('app').innerHTML = `
+      ${renderTopbar()}
+      ${state.tab === 'teacher' ? renderTeacher() : renderAdmin()}
+      ${state.modal ? renderModal() : ''}
+      ${state.cartModal ? renderCartModal() : ''}
+      ${state.confirmCancelKey ? renderCancelConfirm() : ''}
+      ${state.warningModal ? renderWarningModal() : ''}
+      ${state.locationErrorModal ? renderLocationErrorModal() : ''}
+    `;
+    bindEvents();
+  }
+
+  function renderTopbar(){
+    const activeCarts = state.carts.filter(c => c.enabled);
+    const isGuest = !state.userData;
+    const isSuper = checkIsSuperAdmin(state.userData);
+    const hasAdminRights = checkHasAnyAdminRights(state.userData);
+    const adminTag = isSuper ? ' (系統管理員)' : (hasAdminRights ? ' (地點管理員)' : '');
+    const welcomeText = isGuest ? '<strong style="color:var(--ink-soft);">訪客模式 (請登入以預約)</strong>' : `歡迎，<strong style="color:var(--accent);">${escapeHtml(state.userData?.name || '')}</strong> 老師${adminTag}`;
+    
+    return `
+      <div class="topbar">
+        <div><h1>豐東國中平板借用系統</h1><p>全校開放 ${activeCarts.length} 台設備 · ${welcomeText}</p></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="tabs">
+            <button data-tab="teacher" class="${state.tab==='teacher'?'active':''}">設備預約</button>
+            ${hasAdminRights ? `<button data-tab="admin" class="${state.tab==='admin'?'active':''}">管理後台</button>` : ''}
+          </div>
+          <button class="btn" style="padding:6px 12px; font-size:12px; background-color:#fef2f2; color:#991b1b; border:1px solid #fecaca; font-weight:700;" id="${isGuest ? 'loginBtn' : 'logoutBtn'}">${isGuest ? '登入系統' : '登出'}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function getCellContent(date, periodIdx, adminMode){
+    const dateStr = fmt(date);
+    const day = date.getDay();
+    const today = getStartOfToday();
+    const diffDays = daysBetween(today, date);
+    
+    const isSuper = checkIsSuperAdmin(state.userData);
+    const managedLocs = getManagedLocations(state.userData);
+    
+    let currentCarts = state.carts;
+    // 管理員視角：地點管理員只看到管轄地點
+    if (adminMode && !isSuper) {
+       currentCarts = currentCarts.filter(c => managedLocs.includes((c.location||'').trim()));
+    }
+    // 套用下拉選單過濾
+    if (state.filterLocation) {
+       currentCarts = currentCarts.filter(c => (c.location || '').trim() === state.filterLocation);
+    }
+    
+    let html = '';
+    const cellBookings = currentCarts.map(c => state.bookings[keyOf(dateStr, periodIdx, c.cartId)]).filter(b => b);
+    
+    cellBookings.forEach(b => {
+      const cartInfo = currentCarts.find(c => c.cartId === b.cart) || {name: '未知', colorTheme: 'gray', location: ''};
+      const isMine = !adminMode && state.userData && matchUser(b.teacher, state.userData.name);
+      
+      let canCancel = false;
+      if (adminMode) {
+        canCancel = isSuper || managedLocs.includes(cartInfo.location);
+      } else {
+        canCancel = isMine && date.getTime() > today.getTime();
+      }
+      
+      const attr = canCancel ? `data-cancel-key="${keyOf(dateStr, periodIdx, b.cart)}" style="cursor:pointer;" title="點擊取消"` : `title="${escapeHtml(b.className)} / ${escapeHtml(b.teacher)}"`;
+      const xBtn = canCancel ? `<div class="x-btn">✖</div>` : '';
+      
+      html += `<div class="pill theme-${cartInfo.colorTheme}" ${attr}>${xBtn}<span>${escapeHtml(cartInfo.name)} ${escapeHtml(b.className)}</span><span class="who">${escapeHtml(b.teacher)}</span></div>`;
+    });
+
+    const availableCarts = currentCarts.filter(c => {
+      if (!c.enabled || (c.blockedPeriods || []).includes(`${day}_${periodIdx}`) || state.bookings[keyOf(dateStr, periodIdx, c.cartId)]) return false;
+      if (!adminMode && c.reservedFor) {
+        if (!state.userData || !c.reservedFor.split(',').map(s=>s.trim()).includes(state.userData.name)) return false;
+      }
+      return true;
+    });
+
+    let isDisabled = false;
+    const weeklyCount = getWeeklyCount(dateStr);
+
+    if (!adminMode) {
+      if (diffDays < state.sysSettings.minLeadDays || diffDays > state.sysSettings.maxBookingDays) { 
+        isDisabled = true; 
+      } else if (availableCarts.length === 0 && currentCarts.length > 0) { 
+        isDisabled = true; 
+      } else if (weeklyCount >= state.sysSettings.maxWeeklyPeriods) {
+        html += `<button class="add-booking-btn" data-limit="true" style="color:#991b1b; border-color:#fecaca; background-color:#fef2f2;">已達上限</button>`;
+      } else if (availableCarts.length > 0) { 
+        html += `<button class="add-booking-btn" data-date="${dateStr}" data-period="${periodIdx}">＋ 預約</button>`; 
+      }
+    } else {
+      if (availableCarts.length > 0) {
+        html += `<button class="add-booking-btn" data-date="${dateStr}" data-period="${periodIdx}">＋ 預約 (管理員)</button>`; 
+      }
+    }
+    return { html, isDisabled };
+  }
+
+  function renderTeacher(){
+    const dates = getBusinessDays(state.viewStart, 5);
+    const locs = [...new Set(state.carts.map(c => (c.location || '').trim()).filter(Boolean))];
+    const locFilter = `<select id="locationFilter" style="padding:6px; border:1px solid var(--border); border-radius:4px;"><option value="">全部地點</option>${locs.map(l => `<option value="${escapeHtml(l)}" ${state.filterLocation===l?'selected':''}>${escapeHtml(l)}</option>`).join('')}</select>`;
+    
+    return `
+      <div class="weeknav" style="justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div class="notice" style="margin-bottom: 0; padding: 6px 14px;">💡 借用規則：至少 <strong>${state.sysSettings.minLeadDays} 天前</strong>預約，最遠預約 <strong>${state.sysSettings.maxBookingDays} 天</strong>，單週額度上限 <strong>${state.sysSettings.maxWeeklyPeriods} 節</strong>。可隨時於 1 天前自主點擊 ✖ 取消。</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${locFilter}
+          <button class="nav-btn" data-nav="-5">‹</button>
+          <button class="today-btn" data-nav="today">回到今天</button>
+          <button class="nav-btn" data-nav="5">›</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="desktop-table">
+          <thead><tr><th>時段</th>${dates.map(d => {
+            const diff = daysBetween(getStartOfToday(), d);
+            const isBlocked = diff < state.sysSettings.minLeadDays || diff > state.sysSettings.maxBookingDays;
+            const statusBadge = isBlocked 
+              ? `<div style="margin-top:6px;"><span style="display:inline-block; font-size:11px; padding:2px 8px; border-radius:99px; background:#f3f4f6; color:#6b7280; font-weight:500;">借用截止</span></div>`
+              : `<div style="margin-top:6px;"><span style="display:inline-block; font-size:11px; padding:2px 8px; border-radius:99px; background:#ecfdf5; color:#059669; font-weight:600;">開放借用</span></div>`;
+            return `<th><div><span class="date" style="font-weight:700;">${d.getMonth()+1}/${d.getDate()}</span> 週${WEEKDAY_LABEL[d.getDay()]}</div>${statusBadge}</th>`;
+          }).join('')}</tr></thead>
+          <tbody>${PERIODS.map((label, pIdx) => `<tr><th>${label}</th>${dates.map(d => {
+            const cell = getCellContent(d, pIdx, false);
+            return `<td><div class="slot-wrapper ${cell.isDisabled ? 'disabled' : ''}">${cell.html}</div></td>`;
+          }).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderAdmin(){
+    const dates = getBusinessDays(state.viewStart, 5);
+    const locs = [...new Set(state.carts.map(c => (c.location || '').trim()).filter(Boolean))];
+    
+    const isSuper = checkIsSuperAdmin(state.userData);
+    const managedLocs = getManagedLocations(state.userData);
+    const allowedLocs = isSuper ? locs : locs.filter(l => managedLocs.includes(l));
+    
+    if (!isSuper && (!state.filterLocation || !allowedLocs.includes(state.filterLocation))) {
+        state.filterLocation = allowedLocs[0] || '';
+    }
+
+    const locFilterOptions = isSuper ? `<option value="">全部地點</option>` : '';
+    const locFilter = `<select id="locationFilter" style="padding:6px; border:1px solid var(--border); border-radius:4px;">${locFilterOptions}${allowedLocs.map(l => `<option value="${escapeHtml(l)}" ${state.filterLocation===l?'selected':''}>${escapeHtml(l)}</option>`).join('')}</select>`;
+    
+    const adminActiveCarts = state.filterLocation 
+       ? state.carts.filter(c => (c.location || '').trim() === state.filterLocation) 
+       : state.carts.filter(c => allowedLocs.includes((c.location || '').trim()));
+
+    // 產生全域設定中的地點管理員清單
+    const locAdmins = state.sysSettings.locationAdmins || {};
+    const locAdminInputs = locs.map(loc => `
+      <div style="flex:1; min-width:200px;">
+        <label style="font-size:12px; color:var(--ink-soft); margin-bottom:4px; display:block;">管理員 - ${escapeHtml(loc)}</label>
+        <input type="text" class="locAdminInput" data-loc="${escapeHtml(loc)}" value="${escapeHtml(locAdmins[loc] || '')}" style="width:100%; padding:6px; font-size:13px;" placeholder="張三, 李四">
+      </div>
+    `).join('');
+
+    return `
+      <div class="weeknav">
+        <h3>強制管理總表 (可點擊方塊代借或取消)</h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${locFilter}
+          <button class="nav-btn" data-nav="-5">‹</button>
+          <button class="today-btn" data-nav="today">回到今天</button>
+          <button class="nav-btn" data-nav="5">›</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:24px;">
+        <table class="desktop-table">
+          <thead><tr><th>時段</th>${dates.map(d => `<th><span class="date">${d.getMonth()+1}/${d.getDate()}</span> 週${WEEKDAY_LABEL[d.getDay()]}</th>`).join('')}</tr></thead>
+          <tbody>${PERIODS.map((label, pIdx) => `<tr><th>${label}</th>${dates.map(d => `<td><div class="slot-wrapper admin-mode">${getCellContent(d, pIdx, true).html}</div></td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0;">設備管理中心</h3>
+        ${isSuper ? `<button class="btn primary" id="addCartBtn" style="flex:none; padding:8px 24px; border-radius:99px; box-shadow:0 4px 6px -1px rgba(37,99,235,0.2); font-size:13.5px; letter-spacing:0.5px;">＋ 新增平板車</button>` : ''}
+      </div>
+      <table class="list-table" style="margin-bottom:40px;">
+        <thead>
+          <tr>
+            <th style="min-width:180px;">名稱</th>
+            <th style="min-width:100px;">放置地點</th>
+            <th style="min-width:150px;">適用班級</th>
+            <th>保留對象</th>
+            <th style="width:130px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${adminActiveCarts.map(c => `<tr>
+            <td style="font-weight:700;">${escapeHtml(c.name)} <span class="theme-${c.colorTheme}" style="padding:2px 6px; border-radius:4px; font-size:11px;">${THEMES[c.colorTheme]}</span></td>
+            <td>${escapeHtml(c.location || '-')}</td>
+            <td style="color:#2563eb; font-weight:600;">${escapeHtml(c.allowedClasses || '全校開放')}</td>
+            <td style="color:var(--danger); font-weight:600;">${escapeHtml(c.reservedFor || '全校開放')}</td>
+            <td>
+              <button class="edit-cart-btn btn ghost" data-id="${c.cartId}" style="padding:4px 8px;">編輯</button>
+              ${isSuper ? `<button class="delete-cart-btn btn danger" data-id="${c.cartId}" style="padding:4px 8px; margin-left:4px;">刪除</button>` : ''}
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+
+      ${isSuper ? `
+      <div style="background:white; padding:20px; border:1px solid var(--border); border-radius:8px; margin-bottom:20px;">
+        <h3 style="margin-bottom:16px;">⚙️ 全域預約規則設定</h3>
+        <div style="display:flex; gap:15px; margin-top:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div><label style="font-size:12px; color:var(--ink-soft); margin-bottom:4px; display:block;">提前天數</label><input type="number" id="sysMin" value="${state.sysSettings.minLeadDays}" style="width:80px; padding:6px; font-size:13px;" min="0"></div>
+          <div><label style="font-size:12px; color:var(--ink-soft); margin-bottom:4px; display:block;">最遠天數</label><input type="number" id="sysMax" value="${state.sysSettings.maxBookingDays}" style="width:80px; padding:6px; font-size:13px;" min="0"></div>
+          <div><label style="font-size:12px; color:var(--ink-soft); margin-bottom:4px; display:block;">單週節數上限</label><input type="number" id="sysWeek" value="${state.sysSettings.maxWeeklyPeriods}" style="width:80px; padding:6px; font-size:13px;" min="0"></div>
+        </div>
+        <hr style="border:0; border-top:1px solid var(--border-soft); margin:20px 0;">
+        <h4 style="margin:0 0 12px 0; color:#374151;">各區地點管理員 (多位以逗號分隔，免輸入最高管理員)</h4>
+        <div style="display:flex; gap:15px; flex-wrap:wrap; align-items:flex-end;">
+          ${locAdminInputs}
+          <div style="width:100%; text-align:right; margin-top:10px;">
+            <button id="saveSysBtn" class="btn primary" style="padding:8px 24px; border-radius:99px; font-size:13.5px; box-shadow:0 4px 6px -1px rgba(37,99,235,0.2);">儲存全域設定</button>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+    `;
+  }
+
+  function renderModal(){
+    if (!state.userData) return ''; 
+    const { date, periodIdx } = state.modal;
+    const d = new Date(date + 'T00:00:00');
+    const day = d.getDay();
+    
+    const isSuper = checkIsSuperAdmin(state.userData);
+    const managedLocs = getManagedLocations(state.userData);
+
+    const availableCarts = state.filterLocation ? state.carts.filter(c => (c.location || '').trim() === state.filterLocation) : state.carts;
+    
+    let modalCarts = availableCarts.filter(c => {
+      if (!c.enabled || (c.blockedPeriods || []).includes(`${day}_${periodIdx}`) || state.bookings[keyOf(date, periodIdx, c.cartId)]) return false;
+      if (!isSuper) {
+        if (managedLocs.includes(c.location)) return true; // location admin bypass
+        if (c.reservedFor) {
+          if (!c.reservedFor.split(',').map(s=>s.trim()).includes(state.userData.name)) return false;
+        }
+      }
+      return true;
+    });
+
+    if (state.tab === 'admin' && !isSuper) {
+       modalCarts = modalCarts.filter(c => managedLocs.includes(c.location));
+    }
+
+    return `
+      <div class="overlay" id="overlay"><div class="modal">
+        <h3>新增預約</h3><div style="color:var(--ink-soft); margin-bottom:15px;">${d.getMonth()+1}月${d.getDate()}日 · ${PERIODS[periodIdx]}</div>
+        <div class="field">
+          <label>選擇設備</label>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+            ${modalCarts.length > 0 ? modalCarts.map(c => `
+              <label style="display:flex; align-items:center; gap:10px; font-weight:500; cursor:pointer;">
+                <div class="toggle-switch">
+                  <input type="radio" name="inputCart" value="${c.cartId}">
+                  <span class="toggle-slider"></span>
+                </div>
+                <span>${escapeHtml(c.name)}</span>
+              </label>
+            `).join('') : '<span style="font-size:13px; color:var(--danger);">無可用設備</span>'}
+          </div>
+        </div>
+        <div class="field"><label>使用班級 <span style="color:red;">*</span></label><input type="text" id="inputClassName" placeholder="701" required></div>
+        <div class="field"><label>任課教師</label><input type="text" id="inputTeacher" value="${escapeHtml(state.userData?.name || '')}" ${checkIsSuperAdmin(state.userData) ? '' : 'readonly style="background-color:#f3f4f6; color:var(--ink-soft); cursor:not-allowed;"'}></div>
+        <div style="display:flex; gap:10px;"><button class="btn ghost" id="closeModal">取消</button><button class="btn primary" id="confirmBookingBtn">確定預約</button></div>
+      </div></div>
+    `;
+  }
+
+  function renderCartModal() {
+    const c = state.cartModal;
+    const isSuper = checkIsSuperAdmin(state.userData);
+    const readOnlyAttr = isSuper ? '' : 'readonly style="background-color:#f3f4f6; color:var(--ink-soft); cursor:not-allowed;"';
+    const disabledAttr = isSuper ? '' : 'disabled style="background-color:#f3f4f6; color:var(--ink-soft); cursor:not-allowed;"';
+
+    let gridHtml = `<table class="block-grid"><thead><tr><th></th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th></tr></thead><tbody>`;
+    PERIODS.forEach((pName, pIdx) => {
+      gridHtml += `<tr><td>${pName}</td>`;
+      [1, 2, 3, 4, 5].forEach(day => {
+        const isBlocked = (c.blockedPeriods || []).includes(`${day}_${pIdx}`);
+        gridHtml += `<td class="grid-cell ${isBlocked ? 'is-blocked' : ''}" data-day="${day}" data-period="${pIdx}">${isBlocked ? '✖' : ''}</td>`;
+      });
+      gridHtml += `</tr>`;
+    });
+    gridHtml += `</tbody></table>`;
+
+    return `
+      <div class="overlay" id="cartOverlay"><div class="modal" style="max-width:500px;">
+        <h3>平板車設定</h3>
+        <div style="display:flex; gap:10px;">
+          <div class="field" style="flex:1;"><label>名稱 <span style="color:red;">*</span></label><input type="text" id="cartName" value="${escapeHtml(c.name||'')}" ${readOnlyAttr}></div>
+          <div class="field" style="flex:1;"><label>地點</label><input type="text" id="cartLoc" value="${escapeHtml(c.location||'')}" ${readOnlyAttr}></div>
+          <div class="field"><label>標籤</label><select id="cartTheme" ${disabledAttr}>${Object.keys(THEMES).map(k => `<option value="${k}" ${c.colorTheme===k?'selected':''}>${THEMES[k]}</option>`).join('')}</select></div>
+        </div>
+        <div class="field"><label>限定對象 (留白代表全校開放，多筆以逗號分隔)</label><input type="text" id="cartReserved" value="${escapeHtml(c.reservedFor||'')}" placeholder="張三, 李四" ${readOnlyAttr}></div>
+        <div class="field"><label>適用班級 (留白代表全校開放；可填如：7 或 701, 702 或 701-705)</label><input type="text" id="cartAllowedClasses" value="${escapeHtml(c.allowedClasses||'')}" placeholder="例如：7 代表七年級全體；或 701-705" ${readOnlyAttr}></div>
+        
+        <div class="field" style="background:#f3f4f6; padding:12px; border-radius:6px; display:flex; align-items:center; gap:12px;">
+          <div class="toggle-switch">
+            <input type="checkbox" id="cartEnabled" ${c.enabled !== false ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </div>
+          <label for="cartEnabled" style="margin:0; cursor:pointer; font-size:14px; font-weight:600;">啟用開放預約</label>
+        </div>
+        
+        <div class="field"><label>不開放節次 (點擊反紅)</label>${gridHtml}</div>
+        <div style="display:flex; gap:10px;"><button class="btn ghost" id="closeCartModal">取消</button><button class="btn primary" id="saveCartBtn">儲存設定</button></div>
+      </div></div>
+    `;
+  }
+
+  function renderCancelConfirm(){
+    const b = state.bookings[state.confirmCancelKey];
+    if(!b) return '';
+    const cart = state.carts.find(c => c.cartId === b.cart) || {name: '未知'};
+    return `
+      <div class="overlay" id="cancelOverlay"><div class="modal" style="text-align:center;">
+        <h3>確認取消預約？</h3>
+        <p style="margin-bottom:20px;">${b.date} · ${PERIODS[b.periodIdx]} · <strong>${escapeHtml(cart.name)}</strong></p>
+        <div style="display:flex; gap:10px;"><button class="btn ghost" id="cancelConfirmNo">返回</button><button class="btn danger" id="cancelConfirmYes">確定取消</button></div>
+      </div></div>
+    `;
+  }
+
+  function renderWarningModal() {
+    return `
+      <div class="overlay" id="warningOverlay" style="z-index:999;">
+        <div class="modal" style="text-align:center; max-width:320px; padding:30px 24px;">
+          <div style="font-size:48px; margin-bottom:12px;">☕</div>
+          <h3 style="color:#991b1b; margin:0 0 12px 0; font-size:20px;">本週額度已滿</h3>
+          <p style="color:var(--ink-soft); font-size:14px; margin-bottom:24px; line-height:1.6;">
+            您本週的借用已達 <strong>${state.sysSettings.maxWeeklyPeriods} 節</strong> 上限。<br>休息一下，把設備留給其他老師吧！
+          </p>
+          <button class="btn" style="width:100%; background-color:#fef2f2; color:#991b1b; border:1px solid #fecaca; font-weight:700;" id="closeWarningBtn">我知道了</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLocationErrorModal() {
+    if (!state.locationErrorModal) return '';
+    const { className, currentCart, suggestedCarts } = state.locationErrorModal;
+    
+    let suggestionHtml = '';
+    if (suggestedCarts.length > 0) {
+      suggestionHtml = `
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px; margin:16px 0; text-align:left;">
+          <div style="font-weight:700; color:#1e40af; margin-bottom:6px;">👉 適用本班級之設備與地點：</div>
+          <ul style="margin:0; padding-left:20px; font-size:13.5px; color:#1e3a8a;">
+            ${suggestedCarts.map(c => `<li><strong>${escapeHtml(c.name)}</strong> (放置於：<strong>${escapeHtml(c.location || '未標註地點')}</strong>)</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    } else {
+      suggestionHtml = `<div style="color:var(--danger); margin:15px 0; font-size:13px;">目前系統中未設定適用於 <strong>${escapeHtml(className)}</strong> 班的設備，請洽系統管理員。</div>`;
+    }
+
+    return `
+      <div class="overlay" id="locationErrorOverlay" style="z-index:999;">
+        <div class="modal" style="text-align:center; max-width:420px; padding:28px 24px;">
+          <div style="font-size:44px; margin-bottom:10px;">🏢</div>
+          <h3 style="color:#991b1b; margin:0 0 10px 0; font-size:19px;">教學大樓／設備不符</h3>
+          <p style="color:var(--ink-soft); font-size:14px; margin:0; line-height:1.6;">
+            <strong>${escapeHtml(className)}</strong> 班無法借用 <strong>${escapeHtml(currentCart.name)}</strong><br>
+            (該設備放置於：<strong>${escapeHtml(currentCart.location || '未標註地點')}</strong>)
+          </p>
+          ${suggestionHtml}
+          <button class="btn primary" style="width:100%; margin-top:8px;" id="closeLocationErrorBtn">回預約頁面重選</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindEvents(){
+    document.querySelectorAll('[data-tab]').forEach(btn=>{ btn.addEventListener('click', ()=>{ state.tab = btn.dataset.tab; render(); }); });
+    if (document.getElementById('locationFilter')) document.getElementById('locationFilter').addEventListener('change', (e) => { state.filterLocation = e.target.value; render(); });
+    
+    if (document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => handleLogout(true));
+    if (document.getElementById('loginBtn')) document.getElementById('loginBtn').addEventListener('click', () => window.location.replace(SSO_CENTER_URL + "?redirect=" + encodeURIComponent(CURRENT_APP_URL)));
+    
+    document.querySelectorAll('[data-nav]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(btn.dataset.nav === 'today') state.viewStart = getStartOfToday();
+        else state.viewStart = shiftBusinessDays(state.viewStart, parseInt(btn.dataset.nav,10));
+        render();
+      });
+    });
+
+    document.querySelectorAll('.add-booking-btn').forEach(btn=>{ 
+      btn.addEventListener('click', ()=>{ 
+        if (!state.userData) {
+          window.location.replace(SSO_CENTER_URL + "?redirect=" + encodeURIComponent(CURRENT_APP_URL));
+          return;
+        }
+        if (btn.dataset.limit === "true") {
+          state.warningModal = true;
+          render();
+          return;
+        }
+        state.modal = { date: btn.dataset.date, periodIdx: parseInt(btn.dataset.period,10) }; 
+        render(); 
+      }); 
+    });
+    
+    if(document.getElementById('closeWarningBtn')) document.getElementById('closeWarningBtn').addEventListener('click', ()=>{ state.warningModal = false; render(); });
+    if(document.getElementById('closeLocationErrorBtn')) document.getElementById('closeLocationErrorBtn').addEventListener('click', ()=>{ state.locationErrorModal = null; render(); });
+    
+    document.querySelectorAll('[data-cancel-key]').forEach(el=>{ el.addEventListener('click', (e)=>{ e.stopPropagation(); state.confirmCancelKey = el.dataset.cancelKey; render(); }); });
+
+    if(document.getElementById('cancelConfirmYes')) document.getElementById('cancelConfirmYes').addEventListener('click', async ()=>{
+      const cancelKey = state.confirmCancelKey;
+      const backupBooking = state.bookings[cancelKey];
+      
+      delete state.bookings[cancelKey];
+      state.confirmCancelKey = null;
+      render();
+
+      try {
+        await callServer('cancelBooking', cancelKey);
+        await loadInitialData(true); 
+        showToast('已成功取消');
+      } catch(err) {
+        if(backupBooking) state.bookings[cancelKey] = backupBooking;
+        render(); 
+        showToast('取消失敗：' + err.message);
+      }
+    });
+    if(document.getElementById('cancelConfirmNo')) document.getElementById('cancelConfirmNo').addEventListener('click', ()=>{ state.confirmCancelKey = null; render(); });
+    if(document.getElementById('closeModal')) document.getElementById('closeModal').addEventListener('click', ()=>{ state.modal=null; render(); });
+
+    if(document.getElementById('confirmBookingBtn')) document.getElementById('confirmBookingBtn').addEventListener('click', async ()=>{
+      const btn = document.getElementById('confirmBookingBtn'); 
+      btn.disabled = true;
+      
+      const selectedCartEl = document.querySelector('input[name="inputCart"]:checked');
+      if (!selectedCartEl) {
+        showToast('請選擇設備（開啟滑動開關）');
+        btn.disabled = false;
+        return;
+      }
+      const cartId = selectedCartEl.value;
+      
+      const className = document.getElementById('inputClassName').value.trim();
+      if (!className) {
+        showToast('請填寫使用班級');
+        document.getElementById('inputClassName').focus();
+        btn.disabled = false;
+        return;
+      }
+
+      const isSuper = checkIsSuperAdmin(state.userData);
+      const managedLocs = getManagedLocations(state.userData);
+      const selectedCart = state.carts.find(c => c.cartId === cartId);
+      
+      const isLocAdminForThisCart = selectedCart && managedLocs.includes(selectedCart.location);
+      const isAnyAdminForThisCart = isSuper || isLocAdminForThisCart;
+      
+      if (!isAnyAdminForThisCart && selectedCart && selectedCart.allowedClasses) {
+        if (!isClassAllowed(className, selectedCart.allowedClasses)) {
+          const suggestedCarts = state.carts.filter(c => c.enabled && isClassAllowed(className, c.allowedClasses));
+          state.locationErrorModal = {
+            className: className,
+            currentCart: selectedCart,
+            suggestedCarts: suggestedCarts
+          };
+          render();
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      const teacherName = document.getElementById('inputTeacher').value;
+      const dateStr = state.modal.date;
+      const periodIdx = state.modal.periodIdx;
+      const bKey = keyOf(dateStr, periodIdx, cartId);
+      
+      state.bookings[bKey] = {
+        date: dateStr, periodIdx: periodIdx, cart: cartId,
+        className: className, teacher: teacherName
+      };
+      state.modal = null;
+      render(); 
+
+      try {
+        await callServer('addBooking', bKey, {
+          date: dateStr, periodIdx: periodIdx, cart: cartId,
+          className: className, teacher: teacherName
+        });
+        await loadInitialData(true); 
+        showToast('預約成功！');
+      } catch(err) { 
+        delete state.bookings[bKey];
+        render(); 
+        showToast('預約失敗：' + err.message); 
+      } finally {
+        if(document.getElementById('confirmBookingBtn')) {
+           document.getElementById('confirmBookingBtn').disabled = false;
+        }
+      }
+    });
+
+    if(document.getElementById('saveSysBtn')) document.getElementById('saveSysBtn').addEventListener('click', async ()=>{
+      const sysMin = parseInt(document.getElementById('sysMin').value, 10);
+      const sysMax = parseInt(document.getElementById('sysMax').value, 10);
+      const sysWeek = parseInt(document.getElementById('sysWeek').value, 10);
+      
+      const newLocAdmins = {};
+      document.querySelectorAll('.locAdminInput').forEach(input => {
+        const val = input.value.trim();
+        if(val) newLocAdmins[input.dataset.loc] = val;
+      });
+
+      if (isNaN(sysMin) || isNaN(sysMax) || isNaN(sysWeek) || sysMin < 0 || sysMax < 0 || sysWeek < 0) {
+        showToast('設定值必須為大於等於 0 的整數');
+        return;
+      }
+      if (sysMin > sysMax) {
+        showToast('錯誤：提前天數不可大於最遠天數！');
+        return;
+      }
+
+      const btn = document.getElementById('saveSysBtn'); btn.disabled = true;
+      try{
+        await callServer('saveSettings', {
+          minLeadDays: sysMin, maxBookingDays: sysMax, maxWeeklyPeriods: sysWeek, locationAdmins: newLocAdmins
+        });
+        await loadInitialData(); showToast('全域設定與地點管理員已更新');
+      }catch(err){ showToast('更新失敗：' + err.message); btn.disabled = false; }
+    });
+
+    if(document.getElementById('addCartBtn')) document.getElementById('addCartBtn').addEventListener('click', () => { state.cartModal = { enabled: true, blockedPeriods: [], colorTheme: 'blue' }; render(); });
+    document.querySelectorAll('.edit-cart-btn').forEach(btn => { btn.addEventListener('click', () => { state.cartModal = state.carts.find(c => c.cartId === btn.dataset.id); render(); }); });
+    document.querySelectorAll('.delete-cart-btn').forEach(btn => { btn.addEventListener('click', async () => { if(confirm('確定刪除此設備？')) { await callServer('deleteCart', btn.dataset.id); await loadInitialData(); showToast('已刪除'); } }); });
+
+    document.querySelectorAll('.grid-cell').forEach(cell => { cell.addEventListener('click', function() { this.classList.toggle('is-blocked'); this.innerHTML = this.classList.contains('is-blocked') ? '✖' : ''; }); });
+    if(document.getElementById('closeCartModal')) document.getElementById('closeCartModal').addEventListener('click', ()=>{ state.cartModal=null; render(); });
+
+    if (document.getElementById('saveCartBtn')) document.getElementById('saveCartBtn').addEventListener('click', async () => {
+      const cName = document.getElementById('cartName').value.trim();
+      if (!cName) {
+        showToast('請填寫設備名稱');
+        return;
+      }
+
+      try {
+        await callServer('saveCart', {
+          cartId: state.cartModal.cartId || 'cart_' + Date.now(), 
+          name: cName,
+          location: document.getElementById('cartLoc').value.trim(), 
+          colorTheme: document.getElementById('cartTheme').value,
+          enabled: document.getElementById('cartEnabled').checked, 
+          reservedFor: document.getElementById('cartReserved').value.trim(),
+          allowedClasses: document.getElementById('cartAllowedClasses').value.trim(),
+          blockedPeriods: Array.from(document.querySelectorAll('.grid-cell.is-blocked')).map(cell => `${cell.dataset.day}_${cell.dataset.period}`)
+        });
+        state.cartModal = null; await loadInitialData(); showToast('設備已更新');
+      } catch(e) { showToast('儲存失敗: ' + e.message); }
+    });
+  }
+
+  initGatekeeper();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.loaded) {
+      if (state.userData && !enforceLocalSession()) {
+        showToast('前次登入已逾時，已切換為訪客模式');
+        render();
+      }
+      loadInitialData(true);
+    }
+  });
+
+  setInterval(() => {
+    if (state.loaded && !state.modal && !state.cartModal && !state.warningModal && !state.confirmCancelKey && !state.locationErrorModal) {
+      if (state.userData && !enforceLocalSession()) {
+        showToast('前次登入已逾時，已切換為訪客模式');
+        render();
+      }
+      loadInitialData(true);
+    }
+  }, 60000);
+
+})();
+</script>
+</body>
+</html>
