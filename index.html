@@ -108,6 +108,7 @@
   const SSO_CENTER_URL = "https://sysop-coder.github.io/sso/"; 
   const CURRENT_APP_URL = "https://sysop-coder.github.io/ipad/";
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzikpK5VAJ1kHAX6UIpfQey4uZpuBBs1sGpUlVIhOwpiMdq4nv_24C_oJXGGY7I1Nsq/exec"; 
+  const SNAPSHOT_KEY = "ipadAppSnapshot";
 
   const PERIODS = ['第一節','第二節','第三節','第四節','第五節','第六節','第七節','第八節'];
   const WEEKDAY_LABEL = ['日','一','二','三','四','五','六'];
@@ -127,6 +128,33 @@
   function keyOf(d, p, c){ return d+'|'+p+'|'+c; }
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   
+  function saveSnapshotToLocal() {
+    try {
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+        bookings: state.bookings,
+        carts: state.carts,
+        sysSettings: state.sysSettings
+      }));
+    } catch (e) {}
+  }
+
+  function tryRestoreSnapshot() {
+    if (state.loaded) return;
+    try {
+      const cachedSnap = localStorage.getItem(SNAPSHOT_KEY);
+      if (cachedSnap) {
+        const snap = JSON.parse(cachedSnap);
+        if (snap && Array.isArray(snap.carts) && snap.carts.length > 0) {
+          state.bookings = snap.bookings || {};
+          state.carts = snap.carts;
+          state.sysSettings = snap.sysSettings || state.sysSettings;
+          state.loaded = true;
+          render();
+        }
+      }
+    } catch (e) {}
+  }
+
   // 權限驗證邏輯
   function checkIsSuperAdmin(user) { 
     return user && ['admin', 'assistant', 'director', 'headmaster'].includes(user.roleId);
@@ -155,12 +183,16 @@
            fieldValue.includes('(由 ' + userName + ' 登記)');
   }
   
+  function clearAuthStorageOnly() {
+    localStorage.removeItem('ipadUserData');
+    localStorage.removeItem('ipadSessionId');
+    localStorage.removeItem('ipadLoginTime');
+  }
+
   function enforceLocalSession() {
     const loginTime = localStorage.getItem('ipadLoginTime');
     if (loginTime && Date.now() - Number(loginTime) > 8 * 60 * 60 * 1000) {
-      localStorage.removeItem('ipadUserData');
-      localStorage.removeItem('ipadSessionId');
-      localStorage.removeItem('ipadLoginTime');
+      clearAuthStorageOnly();
       state.userData = null;
       if (state.tab === 'admin') state.tab = 'teacher';
       return false;
@@ -245,21 +277,48 @@
 
   async function handleLogout(notifyServer = true) {
     if(notifyServer && state.userData) try { await callServer('logoutSession'); } catch(e) {}
-    localStorage.clear();
+    // 僅清除個人登入憑證，保留 ipadAppSnapshot 預約表快照讓訪客模式秒開
+    clearAuthStorageOnly();
     window.location.replace(SSO_CENTER_URL + "?redirect=" + encodeURIComponent(CURRENT_APP_URL));
   }
 
   async function initGatekeeper() {
     const token = new URLSearchParams(window.location.search).get('token');
     if (token) {
-      const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'verifyIpadLogin', args: [token] }) }).then(r=>r.json());
-      if (res.status === 'success' && res.data.success) {
-        localStorage.setItem('ipadUserData', JSON.stringify(res.data.userData));
-        localStorage.setItem('ipadSessionId', res.data.sessionId);
-        localStorage.setItem('ipadLoginTime', Date.now().toString());
-        window.location.replace(CURRENT_APP_URL);
-      } else { handleLogout(false); }
-      return;
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+
+      // 驗證 Token 期間先從本地快照瞬間畫出表格，消除白畫面等待感
+      tryRestoreSnapshot();
+
+      try {
+        const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'verifyIpadLogin', args: [token] }) }).then(r=>r.json());
+        if (res.status === 'success' && res.data.success) {
+          localStorage.setItem('ipadUserData', JSON.stringify(res.data.userData));
+          localStorage.setItem('ipadSessionId', res.data.sessionId);
+          localStorage.setItem('ipadLoginTime', Date.now().toString());
+          state.userData = res.data.userData;
+
+          if (res.data.initData) {
+            state.bookings = res.data.initData.bookings || {};
+            state.carts = res.data.initData.carts || [];
+            state.sysSettings = res.data.initData.sysSettings || state.sysSettings;
+            state.loaded = true;
+            saveSnapshotToLocal();
+            render();
+            return;
+          }
+          loadInitialData(true);
+          return;
+        } else {
+          handleLogout(false);
+          return;
+        }
+      } catch (e) {
+        handleLogout(false);
+        return;
+      }
     }
     
     if (localStorage.getItem('ipadUserData') && localStorage.getItem('ipadSessionId')) {
@@ -271,16 +330,24 @@
     } else {
       state.userData = null; 
     }
-    loadInitialData();
+
+    // 0.05秒先預渲染本地快照，同時背景單一請求同步最新狀態
+    tryRestoreSnapshot();
+    loadInitialData(true);
   }
 
   async function loadInitialData(silent = false){
     try {
-      const [b, c, s] = await Promise.all([ callServer('getBookings'), callServer('getCarts'), callServer('getSettings') ]);
-      state.bookings = b||{}; state.carts = c||[]; state.sysSettings = s||state.sysSettings;
+      const initData = await callServer('getInitData');
+      if (initData) {
+        state.bookings = initData.bookings || {};
+        state.carts = initData.carts || [];
+        state.sysSettings = initData.sysSettings || state.sysSettings;
+        saveSnapshotToLocal();
+      }
     } catch(e){}
-    state.loaded = true; 
     
+    state.loaded = true; 
     if (!(silent && (state.modal || state.cartModal || state.warningModal || state.locationErrorModal))) {
       render();
     }
@@ -332,11 +399,9 @@
     const managedLocs = getManagedLocations(state.userData);
     
     let currentCarts = state.carts;
-    // 管理員視角：地點管理員只看到管轄地點
     if (adminMode && !isSuper) {
        currentCarts = currentCarts.filter(c => managedLocs.includes((c.location||'').trim()));
     }
-    // 套用下拉選單過濾
     if (state.filterLocation) {
        currentCarts = currentCarts.filter(c => (c.location || '').trim() === state.filterLocation);
     }
@@ -443,7 +508,6 @@
        ? state.carts.filter(c => (c.location || '').trim() === state.filterLocation) 
        : state.carts.filter(c => allowedLocs.includes((c.location || '').trim()));
 
-    // 產生全域設定中的地點管理員清單
     const locAdmins = state.sysSettings.locationAdmins || {};
     const locAdminInputs = locs.map(loc => `
       <div style="flex:1; min-width:200px;">
@@ -532,7 +596,7 @@
     let modalCarts = availableCarts.filter(c => {
       if (!c.enabled || (c.blockedPeriods || []).includes(`${day}_${periodIdx}`) || state.bookings[keyOf(date, periodIdx, c.cartId)]) return false;
       if (!isSuper) {
-        if (managedLocs.includes(c.location)) return true; // location admin bypass
+        if (managedLocs.includes(c.location)) return true;
         if (c.reservedFor) {
           if (!c.reservedFor.split(',').map(s=>s.trim()).includes(state.userData.name)) return false;
         }
@@ -717,8 +781,14 @@
       render();
 
       try {
-        await callServer('cancelBooking', cancelKey);
-        await loadInitialData(true); 
+        const res = await callServer('cancelBooking', cancelKey);
+        if (res && res.bookings) {
+          state.bookings = res.bookings;
+          saveSnapshotToLocal();
+          render();
+        } else {
+          await loadInitialData(true);
+        }
         showToast('已成功取消');
       } catch(err) {
         if(backupBooking) state.bookings[cancelKey] = backupBooking;
@@ -783,11 +853,17 @@
       render(); 
 
       try {
-        await callServer('addBooking', bKey, {
+        const res = await callServer('addBooking', bKey, {
           date: dateStr, periodIdx: periodIdx, cart: cartId,
           className: className, teacher: teacherName
         });
-        await loadInitialData(true); 
+        if (res && res.bookings) {
+          state.bookings = res.bookings;
+          saveSnapshotToLocal();
+          render();
+        } else {
+          await loadInitialData(true);
+        }
         showToast('預約成功！');
       } catch(err) { 
         delete state.bookings[bKey];
